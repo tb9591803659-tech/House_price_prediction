@@ -154,36 +154,15 @@ The dataset integrates physical measurements, discrete counts, spatial categoriz
 
 The end-to-end training and inference lifecycle is strictly decoupled to preserve test integrity while packaging the entire feature transformation state directly into the final serializable estimator.
 
-```mermaid
-flowchart TD
-    %% Base styling
-    classDef default fill:#181b20,stroke:#3b4354,stroke-width:1px,color:#e6edf3;
-    classDef highlight fill:#1f2937,stroke:#38bdf8,stroke-width:2px,color:#38bdf8;
-    classDef pipeline fill:#111827,stroke:#6366f1,stroke-width:2px,color:#e0e7ff;
-    classDef terminal fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#a7f3d0;
+---
 
-    A[Raw Ames Housing Dataset<br/><code>1,460 rows × 80 columns</code>] --> B[Data Understanding & Inspection]
-    B --> C[Exploratory Data Analysis<br/><code>Skewness, Correlations, Missingness</code>]
-    C --> D[Strict Train / Test Split<br/><code>80% Train | 20% Isolated Holdout</code>]
-    
-    D --> E[ML Pipeline Construction]
+### 🔄 Architectural Execution Phases
 
-    subgraph Pipeline [" Unified Scikit-Learn Pipeline Object "]
-        E1[Custom Domain Feature Engineering<br/><code>Composite SF, Temporal Age, Interaction Ratios</code>] --> E2[ColumnTransformer: Numerical Sub-Branch<br/><code>Median Imputation + Standard/Robust Scaling</code>]
-        E2 --> E3[ColumnTransformer: Categorical Sub-Branch<br/><code>Constant Imputation + One-Hot Encoding</code>]
-        E3 --> E4[Model Estimator<br/><code>Ridge | Random Forest | Gradient Boosting</code>]
-    end
+| Phase | Boundary | Key Responsibility |
+| :--- | :--- | :--- |
+| **I. Ingestion & Split** | Raw Data → Partition | Enforce hard separation via 80/20 train/test split prior to any aggregation, mean computation, or scaling to eliminate validation leakage. |
+| **II. Pipeline Encapsulation** | `Pipeline` Object | Bundle engineered feature derivations, numerical standardizations, missing value replacements, and categorical sparse-matrix mappings into an atomic unit. |
+| **III. Model Optimization** | CV Tuning Harness | Cross-validate candidates using 5-fold evaluation, minimizing validation Root Mean Squared Error (RMSE) across parameter grids. |
+| **IV. Diagnostics & Serving** | Artifact Export | Audit error behavior on unseen holdout records, pull feature ranking attributions, and serialize the pipeline graph to disk for deterministic inference. |
 
-    E --> E1
-    E4 --> F[Systematic Model Benchmarking<br/><code>Baseline vs. Linear vs. Bagging vs. Boosting</code>]
-    F --> G[5-Fold Cross-Validation<br/><code>Out-of-Fold Leakage-Free Validation</code>]
-    G --> H[Hyperparameter Tuning<br/><code>GridSearchCV on Validation RMSE</code>]
-    H --> I[Final Tuned Pipeline Assembly]
-    I --> J[Holdout Evaluation & Error Auditing<br/><code>Residual Distributions by Quality & Neighborhood</code>]
-    J --> K[Feature Importance & Sensitivity Extraction]
-    K --> L[Model Serialization<br/><code>joblib.dump(pipeline, 'model.joblib')</code>]
-    L --> M([Production Inference Engine<br/><code>predict.py --input raw_data.csv</code>]):::terminal
-
-    class A,D highlight;
-    class Pipeline pipeline;
-    ```
+---
