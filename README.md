@@ -568,7 +568,190 @@ RESIDUAL SKEW CHARACTERISTIC
 ========================================================================================
 Actual Price Range ($)         Observed Model Behavior
 ────────────────────────────────────────────────────────────────────────────────────────
-$50,000  – $300,000  (90%)  ──► Balanced residuals; tight variance within ±$15,000 MAE.
+$50,000  – $300,000  (90%)  ──► Balanced residuals , tight variance within ±$15,000 MAE.
 $300,000 – $500,000  (8%)   ──► Mild compression toward the regional median.
 $500,000+            (2%)   ──► Systemic underestimation (Right-tail truncation).
 ```
+
+## 🔬 Residual Error Stratification by Subgroup
+
+Aggregated evaluation scores can obscure severe localized prediction disparities. Slicing test set residuals across spatial, structural quality, and valuation strata reveals where model variance concentrates.
+
+---
+
+### 📊 Subgroup Diagnostic Breakdown
+
+<table>
+  <thead>
+    <tr>
+      <th align="left">Dimension</th>
+      <th align="left">Stratum / Cohort</th>
+      <th align="center">Mean Absolute Error</th>
+      <th align="left">Structural Driver & Failure Mode Analysis</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="3"><b>Geographic<br>Neighborhood</b></td>
+      <td><code>NridgHt</code> (Northridge Heights)</td>
+      <td align="center"><b>≈ $46,670</b></td>
+      <td rowspan="3">Affluent development corridors dominated by bespoke luxury builds. High baseline land value and customized premium upgrades induce high price variance that standard tabular features only partially capture.</td>
+    </tr>
+    <tr>
+      <td><code>NoRidge</code> (Northridge)</td>
+      <td align="center"><b>≈ $45,969</b></td>
+    </tr>
+    <tr>
+      <td><code>StoneBr</code> (Stone Brook)</td>
+      <td align="center"><b>≈ $38,708</b></td>
+    </tr>
+    <tr>
+      <td rowspan="2"><b>Construction &<br>Finish Quality</b></td>
+      <td><code>OverallQual = 9</code> (Excellent)</td>
+      <td align="center"><b>≈ $46,704</b></td>
+      <td rowspan="2">At top-tier ratings (9–10), material costs, high-end architectural customizations, and designer amenities scale super-linearly, widening the dispersion of realized sale prices.</td>
+    </tr>
+    <tr>
+      <td><code>OverallQual = 10</code> (Very Excellent)</td>
+      <td align="center"><b>≈ $52,371</b></td>
+    </tr>
+    <tr>
+      <td rowspan="4"><b>Valuation<br>Band</b></td>
+      <td><code>&lt; $200k</code></td>
+      <td align="center"><b>$10,361</b></td>
+      <td>High training density; standard tract construction yields tight, stable residual bounds.</td>
+    </tr>
+    <tr>
+      <td><code>$200k – $400k</code></td>
+      <td align="center"><b>$25,984</b></td>
+      <td>Mid-to-upper housing stock; moderate variance driven by partial modernizations and additions.</td>
+    </tr>
+    <tr>
+      <td><code>$400k – $600k</code></td>
+      <td align="center"><b>$59,059</b></td>
+      <td>Semi-custom builds; non-linear premiums emerge for lot positioning and interior finishes.</td>
+    </tr>
+    <tr>
+      <td><code>$600k – $800k</code></td>
+      <td align="center"><b>$131,118</b></td>
+      <td>Severe sparse-sample region; tree-based models encounter leaf value limits, capping peak valuations.</td>
+    </tr>
+  </tbody>
+</table>
+
+> **Key Diagnostic Takeaway:** The model achieves high precision across the core residential market ($<\$200\text{k}$, representing the bulk of transactions with an average error of only ~$\$10\text{k}$). Error magnitudes scale in direct proportion to valuation tiers, driven by non-linear luxury premiums and the bounded step-function nature of tree ensembles at the upper tail.
+
+---
+
+### 💡 Analytical Interpretation & Failure Mode Synthesis
+
+The subgroup residual decomposition reveals that prediction error is not uniformly distributed across the domain space; instead, absolute error scales monotonically with property valuation:
+
+* **Proportional Scaling vs. Systematic Bias:** The expansion in absolute dollar errors among high-value properties reflects heteroscedasticity inherent to real estate markets. As home values increase, discretionary premiums (e.g., custom stonework, panoramic lot orientation, designer finishes) fluctuate significantly more than standard square-footage metrics can capture.
+* **Sample Sparsity at the Upper Tail:** Properties trading above $\$400\text{k}$ account for a small fraction of the training corpus. Tree-based partitioning struggles in data-sparse domains, as terminal leaf nodes calculate averages over very few observations and cannot extrapolate beyond observed historical thresholds.
+* **Loss Function Mechanics:** Training directly on untransformed dollar values with an RMSE objective heavily penalizes large numerical mistakes, but does not enforce constant relative error across price tiers. Applying target stabilization transformations (e.g., $\log(1 + y)$) is a clear next step to homogenize percentage errors across entry-level and luxury brackets alike.
+
+---
+
+## 🌲 Feature Importance & Signal Attribution
+
+Global feature importances were extracted directly from the fitted `GradientBoostingRegressor` based on mean impurity reduction (variance reduction across all split nodes).
+
+---
+
+### 📊 Top 20 Predictive Features (Gini / Variance Reduction)
+
+| Rank | Feature Identifier | Feature Origin | Relative Importance | Cumulative Share | Analytical Interpretation |
+| :---: | :--- | :--- | :---: | :---: | :--- |
+| **1** | `TotalSF` | **Engineered** | **0.376572** | **37.66%** | Total usable space across all floors; acts as primary dimensional anchor. |
+| **2** | `OverallQual` | Raw Tabular | **0.355472** | **73.20%** | Material, build finish, and aesthetic tier (scale 1–10). |
+| **3** | `2ndFlrSF` | Raw Tabular | 0.024772 | 75.68% | Dedicated second-story footprint (vertical space distribution). |
+| **4** | `HouseAge` | **Engineered** | 0.023624 | 78.04% | Physical depreciation and structural age at transaction date. |
+| **5** | `TotalBathrooms` | **Engineered** | 0.019845 | 80.03% | Standardized plumbing utility across above-grade and basement zones. |
+| **6** | `GarageCars` | Raw Tabular | 0.016190 | 81.65% | Vehicular storage capacity. |
+| **7** | `BsmtFinSF1` | Raw Tabular | 0.013988 | 83.05% | Finished, usable basement square footage. |
+| **8** | `GrLivArea` | Raw Tabular | 0.012673 | 84.31% | Above-grade ground living area. |
+| **9** | `LotArea` | Raw Tabular | 0.012550 | 85.57% | Parcel and land acreage dimensions. |
+| **10** | `BsmtQual_Ex` | Encoded Category | 0.011600 | 86.73% | Indicator for premium, high-ceiling basement foundation. |
+| **11** | `LotFrontage` | Raw Tabular | 0.010560 | 87.79% | Linear feet of street connection. |
+| **12** | `YearRemodAdd` | Raw Tabular | 0.008859 | 88.67% | Timestamp of last major structural renovation. |
+| **13** | `YearBuilt` | Raw Tabular | 0.007800 | 89.45% | Original calendar year of construction. |
+| **14** | `OverallCond` | Raw Tabular | 0.006651 | 90.12% | Functional maintenance condition of the property. |
+| **15** | `TotalPorchSF` | **Engineered** | 0.005808 | 90.70% | Aggregated exterior patio, deck, and porch footprint. |
+| **16** | `KitchenAbvGr` | Raw Tabular | 0.005786 | 91.28% | Number of above-grade kitchens (multi-family layout flag). |
+| **17** | `GarageArea` | Raw Tabular | 0.005234 | 91.80% | Total enclosed garage square footage. |
+| **18** | `KitchenQual_TA`| Encoded Category | 0.004280 | 92.23% | Indicator for baseline ("Typical / Average") kitchen finishes. |
+| **19** | `BsmtUnfSF` | Raw Tabular | 0.003752 | 92.60% | Unfinished basement storage space. |
+| **20** | `KitchenQual_Ex`| Encoded Category | 0.003716 | 92.98% | Indicator for high-end luxury kitchen installations. |
+
+---
+
+### 💡 Engineering Validation & Methodological Caveats
+
+* **Engineered Feature Leverage:** Custom domain variables directly validate the feature engineering strategy. `TotalSF`, `HouseAge`, `TotalBathrooms`, and `TotalPorchSF` aggregate substantial variance, proving that composite geometric representations simplify tree split decisions compared to fragmented raw variables alone.
+* **Pareto Distribution:** The top two features (`TotalSF` at **37.7%** and `OverallQual` at **35.5%**) account for **over 73.2%** of total impurity reduction across the 500 boosting stages.
+* **Methodological Note on Causality:** Tree-based impurity metrics quantify how frequently a feature was selected to split sample variance within this specific dataset. They **do not prove causal mechanisms** (e.g., adding an unneeded bathroom will not guarantee an immediate, linear dollar increase equal to the model's split weighting).
+
+---
+
+## 📂 Project Structure
+
+The repository is modularized into discrete responsibilities: domain feature transformation, preprocessing, estimator factories, evaluation harnesses, and serialized inference runners.
+
+---
+
+### 🧩 Module Responsibility Matrix
+
+<table>
+  <thead>
+    <tr>
+      <th align="left">Component / Script</th>
+      <th align="left">Type</th>
+      <th align="left">Operational Scope & Functionality</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>data/train.csv</code></td>
+      <td>Data Asset</td>
+      <td>Canonical historical residential sales benchmark records.</td>
+    </tr>
+    <tr>
+      <td><code>models/house_price_model.joblib</code></td>
+      <td>Binary Asset</td>
+      <td>Self-contained, serialized Scikit-Learn pipeline ready for zero-skew inference.</td>
+    </tr>
+    <tr>
+      <td><code>src/feature_engineering.py</code></td>
+      <td>Module</td>
+      <td>Houses custom Scikit-Learn transformers computing <code>TotalSF</code>, <code>HouseAge</code>, and bathroom ratios.</td>
+    </tr>
+    <tr>
+      <td><code>src/preprocessing.py</code></td>
+      <td>Module</td>
+      <td>Constructs the <code>ColumnTransformer</code> mapping numerical and categorical branches.</td>
+    </tr>
+    <tr>
+      <td><code>src/model.py</code></td>
+      <td>Module</td>
+      <td>Configures estimator hyperparameters and chains preprocessing into an atomic pipeline.</td>
+    </tr>
+    <tr>
+      <td><code>src/evaluation.py</code></td>
+      <td>Module</td>
+      <td>Computes validation matrices, out-of-fold cross-validation metrics, and residual stats.</td>
+    </tr>
+    <tr>
+      <td><code>main.py</code></td>
+      <td>Entry Point</td>
+      <td>Executes full training lifecycle: ingestion, 5-fold CV, test evaluation, and disk export.</td>
+    </tr>
+    <tr>
+      <td><code>predict.py</code></td>
+      <td>CLI / Service</td>
+      <td>Loads <code>house_price_model.joblib</code> to run predictions directly on raw, uncleaned CSV inputs.</td>
+    </tr>
+  </tbody>
+</table>
+
+---
