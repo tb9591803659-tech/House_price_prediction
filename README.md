@@ -166,3 +166,27 @@ The end-to-end training and inference lifecycle is strictly decoupled to preserv
 | **IV. Diagnostics & Serving** | Artifact Export | Audit error behavior on unseen holdout records, pull feature ranking attributions, and serialize the pipeline graph to disk for deterministic inference. |
 
 ---
+
+## 🏗️ Project Architecture: Pipeline Encapsulation
+
+### Why Encapsulation Matters
+
+In conventional machine learning workflows, feature engineering (such as calculating property age or composite square footage) is frequently executed as an ad-hoc, global preprocessing script before feeding arrays into an estimator.
+
+This anti-pattern introduces critical points of failure:
+
+* **Training-Serving Skew:** Production inference scripts must duplicate every data transformation step in lockstep. Any drift in implementation leads to degraded or invalid predictions.
+* **Schema Fragility:** Unencapsulated scripts fail silently when production payloads contain missing columns, reordered fields, or unseen categorical levels, resulting in dimension mismatches.
+* **Information Leakage:** Computing summary statistics (e.g., column medians, scalers, one-hot vocabularies) across the full dataset prior to splitting leaks target and distribution properties into validation sets, inflating offline metrics.
+
+---
+
+### Failure Modes & Architectural Solutions
+
+| Vulnerability | Naive Implementation | Encapsulated Pipeline Solution |
+| :--- | :--- | :--- |
+| **Statistical Leakage** | Scalers and imputers compute global metrics across all rows before train/test splitting. | Statistics are strictly learned inside `fit()` on training folds only; test folds are purely transformed via `transform()`. |
+| **Categorical Mismatch** | New or missing category levels in inference cause matrix shape mismatches and runtime crashes. | `OneHotEncoder(handle_unknown='ignore')` keeps output tensor dimensions fixed regardless of unobserved categorical values. |
+| **Operational Overhead** | Production environments require multi-stage script orchestration to prepare inputs. | Inference is atomic: passing raw input payloads directly into `pipeline.predict()` handles all derivations internally. |
+
+---
