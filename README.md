@@ -190,3 +190,42 @@ This anti-pattern introduces critical points of failure:
 | **Operational Overhead** | Production environments require multi-stage script orchestration to prepare inputs. | Inference is atomic: passing raw input payloads directly into `pipeline.predict()` handles all derivations internally. |
 
 ---
+
+## 🔎 Exploratory Data Analysis (EDA)
+
+Exploratory diagnostics were performed prior to pipeline construction to audit record integrity, investigate missingness mechanisms, and assess target variance and covariate relationships.
+
+---
+
+### 1. Structural Health & Integrity Audit
+
+* **Dataset Dimensions:** Confirmed initial shape of `1,460` records across `81` columns (80 input features + 1 target variable `SalePrice`).
+* **Deduplication:** Audited full-row uniqueness; verified `0` duplicate rows across the index.
+* **Feature Typing:** Identified `38` numerical features (continuous, discrete, temporal) and `43` categorical attributes (nominal, ordinal).
+
+---
+
+### 2. Missing Value Mechanics & Sparsity Analysis
+
+Missing values were audited to separate random data-collection voids (**MCAR / MAR**) from systemic structural absences (**MNAR**):
+> **Domain Insight (Structural Absences):** Nulls in categorical amenity features (e.g., `PoolQC`, `FireplaceQu`, `BsmtQual`, `GarageType`) are informative structural indicators meaning *"amenity does not exist on property"*, rather than dropped or corrupted telemetry. They must be explicitly imputed with constant tokens (e.g., `"None"`) rather than dropped or assigned mode values.
+
+---
+
+### 3. Target Variable Distribution (`SalePrice`)
+
+An inspection of the target variable reveals significant positive right-tail skewness and kurtosis driven by high-value transactions:
+* **Median Sale Price:** ~`$163,000`
+* **Mean Sale Price:** ~`$180,921`
+* **Analytical Impact:** The rightward divergence between mean and median highlights severe positive skewness. To stabilize heteroscedastic residuals, logarithmic transformation options ($\log(1 + y)$) were isolated for downstream modeling.
+
+---
+
+### 4. Bivariate Feature Correlations
+
+Pearson correlation checks ($r$) against `SalePrice` identified the primary linear drivers of home market valuation:
+* **Quality Dominance:** `OverallQual` ($r = 0.79$) serves as the strongest single predictive signal, indicating that physical finish quality dictates valuation ceilings.
+* **Dimensional Footprint:** Sizing features (`GrLivArea` at $r = 0.71$, `TotalBsmtSF` at $r = 0.61$) display massive co-dependency with price, serving as essential anchors for domain-engineered composite area features.
+
+---
+
