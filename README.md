@@ -814,3 +814,38 @@ pip install -r requirements.txt
 
 ---
 
+## 💻 Usage & Execution
+
+### 1. Run the Complete Training Workflow
+
+To ingest the Ames Housing dataset, execute cross-validation, run multi-model benchmarking, optimize hyperparameters via `GridSearchCV`, perform residual error audits, and serialize the trained pipeline to disk:
+
+```bash
+python main.py
+```
+
+### 2. Run Model Inference
+
+To deserialize the production artifact (models/house_price_model.joblib) and generate valuation predictions directly from raw, uncleaned house attributes without manual preprocessing:
+
+```bash
+python predict.py
+```
+
+### Sample output 
+
+```bash 
+Loading model artifact from: models/house_price_model.joblib ... Done.
+Processing raw input feature payload (80 features) ...
+Computing valuation inference ...
+
+============================================================
+              PROPERTY VALUATION ESTIMATE                   
+============================================================
+Predicted Sale Price: $205,040.06
+Execution Status    : Success (200 OK)
+Inference Latency   : ~12 ms
+============================================================
+```
+
+> **Note:** The predicted output corresponds to the baseline test record configured in `predict.py` and reflects the tuned 500-estimator Gradient Boosting pipeline parameters.
