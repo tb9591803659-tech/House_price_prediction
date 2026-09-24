@@ -720,3 +720,97 @@ house-price-prediction/
 ```
 
 ---
+
+## 📦 Module Responsibilities
+
+The codebase follows separation of concerns, ensuring every stage of feature generation, transformation, estimation, and inference is encapsulated within dedicated modules:
+
+<table>
+  <thead>
+    <tr>
+      <th align="left">Script / Module</th>
+      <th align="left">Primary Responsibility</th>
+      <th align="left">Architectural Role & Scope</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>src/feature_engineering.py</code></td>
+      <td>Deterministic Feature Transformation</td>
+      <td>Implements custom Scikit-Learn compatible transformers (inheriting from <code>BaseEstimator</code> and <code>TransformerMixin</code>) to derive compound spatial dimensions, composite bathroom ratios, and transaction-relative age metrics.</td>
+    </tr>
+    <tr>
+      <td><code>src/preprocessing.py</code></td>
+      <td>Column Transformation Assembly</td>
+      <td>Configures the central <code>ColumnTransformer</code> pipeline, coordinating numerical imputation and standardization alongside categorical constant-filling and sparse one-hot vectorization.</td>
+    </tr>
+    <tr>
+      <td><code>src/model.py</code></td>
+      <td>Pipeline Factory & Estimator Packaging</td>
+      <td>Provides unified factory functions that bind the preprocessing stages to candidate estimators (Baseline, Ridge, Random Forest, and Gradient Boosting) into atomic pipeline objects.</td>
+    </tr>
+    <tr>
+      <td><code>src/evaluation.py</code></td>
+      <td>Model Auditing & Metrics Engine</td>
+      <td>Supplies performance evaluation routines returning standardized metric dictionaries containing MAE, MSE, RMSE, and $R^2$ scores across holdout and cross-validation folds.</td>
+    </tr>
+    <tr>
+      <td><code>src/save_model.py</code></td>
+      <td>Artifact Persistence</td>
+      <td>Manages serializing the finalized pipeline graph to binary storage (<code>models/house_price_model.joblib</code>) and guarantees seamless deserialization without schema degradation.</td>
+    </tr>
+    <tr>
+      <td><code>main.py</code></td>
+      <td>End-to-End Orchestrator</td>
+      <td>Drives the top-to-bottom pipeline execution: raw dataset ingestion, 5-fold cross-validation, multi-model benchmarking, <code>GridSearchCV</code> optimization, residual auditing, and artifact generation.</td>
+    </tr>
+    <tr>
+      <td><code>predict.py</code></td>
+      <td>Zero-Skew Production Inference</td>
+      <td>Serves as the standalone production inference endpoint. Loads the serialized <code>.joblib</code> artifact and performs single-call batch or record predictions directly on raw, uncleaned tabular data.</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 🚀 Installation & Local Setup
+
+Follow these steps to set up the runtime environment and install all dependencies required to train and run the valuation pipeline.
+
+### Prerequisites
+
+* **Python 3.9+** installed and added to your system `PATH`
+* **Git** version control CLI
+
+---
+
+### Step-by-Step Setup
+
+**1. Clone the repository:**
+
+```bash
+git clone [https://github.com/](https://github.com/)[your-username]/house-price-prediction.git
+cd house-price-prediction
+```
+
+**2. Create and activate a virtual environment:**
+* WINDOWS : 
+```bash 
+python -m venv .venv
+.venv\Scripts\activate
+```
+* macOS/LINUX : 
+```bash 
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+**3. Install project dependencies:**
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
