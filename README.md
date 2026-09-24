@@ -696,62 +696,27 @@ Global feature importances were extracted directly from the fitted `GradientBoos
 
 ## 📂 Project Structure
 
-The repository is modularized into discrete responsibilities: domain feature transformation, preprocessing, estimator factories, evaluation harnesses, and serialized inference runners.
-
----
-
-### 🧩 Module Responsibility Matrix
-
-<table>
-  <thead>
-    <tr>
-      <th align="left">Component / Script</th>
-      <th align="left">Type</th>
-      <th align="left">Operational Scope & Functionality</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>data/train.csv</code></td>
-      <td>Data Asset</td>
-      <td>Canonical historical residential sales benchmark records.</td>
-    </tr>
-    <tr>
-      <td><code>models/house_price_model.joblib</code></td>
-      <td>Binary Asset</td>
-      <td>Self-contained, serialized Scikit-Learn pipeline ready for zero-skew inference.</td>
-    </tr>
-    <tr>
-      <td><code>src/feature_engineering.py</code></td>
-      <td>Module</td>
-      <td>Houses custom Scikit-Learn transformers computing <code>TotalSF</code>, <code>HouseAge</code>, and bathroom ratios.</td>
-    </tr>
-    <tr>
-      <td><code>src/preprocessing.py</code></td>
-      <td>Module</td>
-      <td>Constructs the <code>ColumnTransformer</code> mapping numerical and categorical branches.</td>
-    </tr>
-    <tr>
-      <td><code>src/model.py</code></td>
-      <td>Module</td>
-      <td>Configures estimator hyperparameters and chains preprocessing into an atomic pipeline.</td>
-    </tr>
-    <tr>
-      <td><code>src/evaluation.py</code></td>
-      <td>Module</td>
-      <td>Computes validation matrices, out-of-fold cross-validation metrics, and residual stats.</td>
-    </tr>
-    <tr>
-      <td><code>main.py</code></td>
-      <td>Entry Point</td>
-      <td>Executes full training lifecycle: ingestion, 5-fold CV, test evaluation, and disk export.</td>
-    </tr>
-    <tr>
-      <td><code>predict.py</code></td>
-      <td>CLI / Service</td>
-      <td>Loads <code>house_price_model.joblib</code> to run predictions directly on raw, uncleaned CSV inputs.</td>
-    </tr>
-  </tbody>
-</table>
+```bash
+house-price-prediction/
+├── data/
+│   └── train.csv                    # Raw Ames Housing dataset (1,460 rows × 81 columns)
+│
+├── models/
+│   └── house_price_model.joblib     # Serialized production pipeline (Transformers + GBDT)
+│
+├── src/
+│   ├── __init__.py                  # Package identifier
+│   ├── feature_engineering.py       # Custom transformers (TotalSF, HouseAge, etc.)
+│   ├── preprocessing.py             # ColumnTransformer setup (Imputation, Scaling, OHE)
+│   ├── model.py                     # Pipeline constructors and model factories
+│   ├── evaluation.py                # Metric evaluation utilities (MAE, MSE, RMSE, R²)
+│   └── save_model.py                # Joblib artifact serialization helpers
+│
+├── main.py                          # Primary execution script for training & evaluation
+├── predict.py                       # Standalone inference interface for raw tabular data
+├── requirements.txt                 # Project environment dependencies
+├── .gitignore                       # Git ignore rules for cache and virtual environments
+└── README.md                        # Project documentation
+```
 
 ---
