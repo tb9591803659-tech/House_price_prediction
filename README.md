@@ -282,3 +282,172 @@ To enrich the feature space with structural signals and spatial ergonomics, cust
 > **Empirical Validation Principle:** These features are constructed as candidate predictors; their incremental contribution is rigorously verified through cross-validated ablation and downstream feature importance audits rather than assumed *a priori*.
 
 ---
+
+## 🔧 Preprocessing & Column Transformations
+
+Preprocessing is orchestrated deterministically via `sklearn.compose.ColumnTransformer`, isolating transformations across disparate column modalities to guarantee zero cross-feature contamination.
+
+---
+
+### ⚙️ Transformation Sub-Pipelines
+
+<table>
+  <thead>
+    <tr>
+      <th align="left">Sub-Pipeline</th>
+      <th align="left">Stage</th>
+      <th align="left">Scikit-Learn Implementation</th>
+      <th align="left">Operational Rationale</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="2"><b>Numerical Branch</b></td>
+      <td><b>Imputation</b></td>
+      <td><code>SimpleImputer(strategy='median')</code></td>
+      <td>Computes the median of each continuous column on training data only; protects central tendency from being skewed by extreme price or square-footage outliers.</td>
+    </tr>
+    <tr>
+      <td><b>Feature Scaling</b></td>
+      <td><code>StandardScaler()</code></td>
+      <td>Normalizes continuous features to zero mean ($\mu = 0$) and unit variance ($\sigma = 1$), preventing features with large raw scales (e.g., <code>LotArea</code>) from dominating regularized linear gradients.</td>
+    </tr>
+    <tr>
+      <td rowspan="2"><b>Categorical Branch</b></td>
+      <td><b>Imputation</b></td>
+      <td><code>SimpleImputer(strategy='constant', fill_value='Missing')</code></td>
+      <td>Preserves structural absence signals (e.g., no garage, no pool) as distinct categories rather than discarding rows or imputing false modes.</td>
+    </tr>
+    <tr>
+      <td><b>Encoding</b></td>
+      <td><code>OneHotEncoder(handle_unknown='ignore', sparse_output=False)</code></td>
+      <td>Maps nominal categories into binary indicator vectors without imposing artificial ordinal scales; safely ignores unseen categorical levels encountered during production inference without throwing runtime shape exceptions.</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 🤖 Models Evaluated
+
+To establish performance bounds and identify the optimal bias-variance tradeoff, four distinct regression architectures were systematically benchmarked against an empirical baseline:
+
+---
+
+### 📋 Candidate Architecture Specifications
+
+<table>
+  <thead>
+    <tr>
+      <th align="left">Model</th>
+      <th align="left">Algorithmic Paradigm</th>
+      <th align="left">Mathematical Formulation / Objective</th>
+      <th align="left">Architectural Role</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>Baseline Regressor</b><br><code>DummyRegressor</code></td>
+      <td>Empirical Central Tendency</td>
+      <td>$$\hat{y} = \bar{y}_{\text{train}}$$</td>
+      <td>Naive control threshold ($R^2 \approx 0.0$); defines the minimum performance bound that any functional model must decisively beat.</td>
+    </tr>
+    <tr>
+      <td><b>Linear Regression</b><br><code>LinearRegression</code></td>
+      <td>Ordinary Least Squares (OLS)</td>
+      <td>$$\min_{\boldsymbol{\beta}} \sum_{i=1}^n \left( y_i - \mathbf{x}_i^T \boldsymbol{\beta} \right)^2$$</td>
+      <td>Standard unconstrained linear benchmark; exposes vulnerabilities to multicollinearity across correlated square-footage attributes.</td>
+    </tr>
+    <tr>
+      <td><b>Ridge Regression</b><br><code>Ridge</code></td>
+      <td>$L_2$-Regularized Linear Model</td>
+      <td>$$\min_{\boldsymbol{\beta}} \left[ \sum_{i=1}^n \left( y_i - \mathbf{x}_i^T \boldsymbol{\beta} \right)^2 + \alpha \sum_{j=1}^p \beta_j^2 \right]$$</td>
+      <td>Introduces quadratic weight shrinkage to penalize inflated coefficients, stabilizing regression slopes against high-dimensional collinear inputs.</td>
+    </tr>
+    <tr>
+      <td><b>Random Forest</b><br><code>RandomForestRegressor</code></td>
+      <td>Bootstrap Aggregation (Bagging)</td>
+      <td>$$\hat{y} = \frac{1}{B} \sum_{b=1}^B T_b(\mathbf{x})$$</td>
+      <td>Constructs an ensemble of fully grown, de-correlated decision trees over bootstrap samples; targets variance reduction and non-linear interactions.</td>
+    </tr>
+    <tr>
+      <td><b>Gradient Boosting</b><br><code>GradientBoostingRegressor</code></td>
+      <td>Sequential Stage-Wise Boosting</td>
+      <td>$$F_m(\mathbf{x}) = F_{m-1}(\mathbf{x}) + \gamma_m h_m(\mathbf{x})$$</td>
+      <td>Fits consecutive shallow decision trees ($h_m$) iteratively against negative gradients (pseudo-residuals) of the loss function, aggressively minimizing bias.</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 📐 Evaluation Metrics
+
+Model performance is evaluated across four complementary regression metrics, establishing both linear dollar-error expectations and penalizations for catastrophic valuation outliers:
+
+---
+
+### 📊 Metric Formulations & Analytical Intent
+
+<table>
+  <thead>
+    <tr>
+      <th align="left">Evaluation Metric</th>
+      <th align="left">Mathematical Definition</th>
+      <th align="left">Interpretability & Target Sensitivity</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>Mean Absolute Error</b><br><code>MAE</code></td>
+      <td>$$\text{MAE} = \frac{1}{n} \sum_{i=1}^n \left| y_i - \hat{y}_i \right|$$</td>
+      <td>Measures the average magnitude of prediction deviations in raw dollar units ($). Treats all residuals uniformly without disproportionate weighting on luxury home valuation errors.</td>
+    </tr>
+    <tr>
+      <td><b>Mean Squared Error</b><br><code>MSE</code></td>
+      <td>$$\text{MSE} = \frac{1}{n} \sum_{i=1}^n \left( y_i - \hat{y}_i \right)^2$$</td>
+      <td>Measures expected squared loss ($^2$). Quadratic exponentiation heavily penalizes extreme misses, making this the primary loss function optimized during gradient tree descent.</td>
+    </tr>
+    <tr>
+      <td><b>Root Mean Squared Error</b><br><code>RMSE</code></td>
+      <td>$$\text{RMSE} = \sqrt{\frac{1}{n} \sum_{i=1}^n \left( y_i - \hat{y}_i \right)^2}$$</td>
+      <td>Restores squared error back into interpretable dollar terms ($). Retains high sensitivity to severe outliers while remaining directly comparable alongside MAE to audit error variance.</td>
+    </tr>
+    <tr>
+      <td><b>Coefficient of Determination</b><br><code>R² Score</code></td>
+      <td>$$R^2 = 1 - \frac{\sum_{i=1}^n \left( y_i - \hat{y}_i \right)^2}{\sum_{i=1}^n \left( y_i - \bar{y} \right)^2}$$</td>
+      <td>Quantifies the fraction of total variance in property prices captured by the model relative to a mean baseline ($\hat{y} = \bar{y}$). Indicates explanatory power, not naive percentage accuracy.</td>
+    </tr>
+  </tbody>
+</table>
+
+> **Metric Sensitivity Note:** A wide divergence between **RMSE** and **MAE** ($\text{RMSE} \gg \text{MAE}$) signals high variance in residual magnitudes, indicating the model produces occasional severe valuation misses on luxury or idiosyncratic structural designs.
+
+---
+
+## 🏆 Model Comparison & Initial Holdout Results
+
+All candidate pipelines were initially trained on an 80% partition (1,168 samples) and benchmarked against the untouched 20% holdout test partition (292 samples) using identical feature transformations.
+
+---
+
+### 📊 Performance Benchmark Matrix
+
+| Model | MAE ($) | MSE | RMSE ($) | $R^2$ Score | Operational Assessment |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Baseline (Mean)** | 62,575.93 | $7.677 \times 10^9$ | 87,619.03 | -0.000882 | Naive mean control; captures zero target variance. |
+| **Linear Regression** | 21,294.20 | $4.729 \times 10^9$ | 68,766.23 | 0.383495 | Unstable; suffers severe coefficient inflation due to multicollinearity. |
+| **Ridge Regression** | 19,116.25 | $9.475 \times 10^8$ | 30,781.93 | 0.876468 | $L_2$ regularization stabilizes matrix inversion, curbing variance. |
+| **Random Forest** | 17,461.11 | $8.728 \times 10^8$ | 29,543.24 | 0.886210 | Bagging ensemble captures non-linear splits; outperforms linear models. |
+| **Gradient Boosting** | **15,667.77** | $\mathbf{6.859 \times 10^8}$ | **26,189.03** | **0.910582** | **Best initial performer; stage-wise residual correction minimizes bias.** |
+
+---
+
+### 🔬 Empirical Findings & Diagnostic Analysis
+
+* **Unconstrained OLS Collapse:** Ordinary Least Squares (OLS) produced an extreme RMSE of `$68,766.23` and a degraded $R^2$ of `0.383`. After one-hot encoding expanded high-cardinality nominal variables (e.g., `Neighborhood`), matrix near-singularity induced severe collinearity, inflating regression weights.
+* **Regularization Recovery:** Applying an $L_2$ penalty via **Ridge Regression** shrunk inflated weights, slashing test RMSE by **55.2%** (down to `$30,781.93`) and lifting $R^2$ to `0.876`.
+* **Tree-Based Superiority:** Both ensemble models captured non-linear boundary thresholds and complex feature interactions that linear combinations missed. 
+* **Gradient Boosting Lead:** Without any hyperparameter tuning, **Gradient Boosting** achieved top marks across every evaluation metric, reducing holdout RMSE to `$26,189.03` with an $R^2$ of `0.911`.
+
+---
