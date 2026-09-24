@@ -826,7 +826,7 @@ python main.py
 
 ### 2. Run Model Inference
 
-To deserialize the production artifact (models/house_price_model.joblib) and generate valuation predictions directly from raw, uncleaned house attributes without manual preprocessing:
+To deserialize the production artifact `(models/house_price_model.joblib)` and generate valuation predictions directly from raw, uncleaned house attributes without manual preprocessing:
 
 ```bash
 python predict.py
@@ -849,3 +849,52 @@ Inference Latency   : ~12 ms
 ```
 
 > **Note:** The predicted output corresponds to the baseline test record configured in `predict.py` and reflects the tuned 500-estimator Gradient Boosting pipeline parameters.
+
+---
+
+## 🧠 Key Concepts Demonstrated
+
+* **Supervised Tabular Regression:** Formulated end-to-end continuous target estimation (`SalePrice`) mapped across multi-modal tabular predictors spanning spatial, temporal, structural, and discrete counts.
+* **Domain-Aware Imputation Strategies:** Separated random missingness from structural physical absences (e.g., absence of a garage or pool) by injecting deterministic constant indicators (`Missing`) while guarding numerical features via median imputation.
+* **Robust Categorical Encoding:** Deployed `OneHotEncoder` configured with `handle_unknown='ignore'` to preserve deterministic feature matrix dimensionality during out-of-vocabulary production inference.
+* **Atomic Pipeline Architecture:** Encapsulated custom feature engineering transformers, imputation, scaling, and the estimator inside a unified `sklearn.pipeline.Pipeline` to guarantee zero data leakage and eliminate training-serving skew.
+* **Leakage-Free Validation Framework:** Conducted rigorous 5-fold cross-validation re-fitting all preprocessing transformations strictly inside training folds to measure out-of-fold generalization error.
+* **Ensemble Architecture Benchmarking:** Compared regularized linear baselines (Ridge) against non-parametric bagging (`RandomForestRegressor`) and sequential residual boosting (`GradientBoostingRegressor`) tuned via `GridSearchCV`.
+* **Post-Hoc Residual Diagnostics:** Audited prediction residuals across geographical zones, overall quality ratings, and valuation brackets to identify upper-tail truncation in tree-based regressors.
+* **Production Artifact Serialization:** Exported the stateful pipeline graph (feature engineering + preprocessing + tuned booster) into a binary `.joblib` asset for sub-millisecond, single-call raw inference.
+
+---
+
+## ⚠️ Limitations & Future Improvements
+
+* **Target Distribution Stabilization:** The raw target `SalePrice` exhibits heavy right-skewed tail behavior, which inflates absolute dollar errors on expensive homes. Future iterations should wrap the estimator in `TransformedTargetRegressor` using a logarithmic mapping ($\log(1 + y)$) to stabilize variance and enforce uniform percentage error across all price tiers.
+* **Specialized Gradient Boosting Frameworks:** Transition from `sklearn.ensemble.GradientBoostingRegressor` to optimized gradient boosting engines such as **LightGBM**, **XGBoost**, or **CatBoost** to take advantage of native categorical partitioning, histogram-based split optimization, and accelerated GPU execution.
+* **Algorithmic Feature Selection:** Incorporate automated dimensionality reduction—such as Recursive Feature Elimination (RFE), mutual information gain thresholds, or $L_1$ Lasso sparsity penalties—to prune redundant and noisy low-importance attributes ($<0.005$ Gini contribution).
+* **Uncertainty & Confidence Intervals:** Point-estimate predictions provide no measure of valuation risk. Implementing **Quantile Regression** (e.g., predicting the 10th, 50th, and 90th percentiles) or **Conformal Prediction** will produce statistically bounded valuation ranges suitable for production underwriting.
+* **Granular Local Explainability:** Augment global Gini feature importance rankings with **SHAP (Shapley Additive exPlanations)** TreeExplainer plots to generate local waterfall and force plots, showing buyers and appraisers exactly which attributes increased or decreased an individual property's estimated price.
+
+---
+
+# Technical Summary
+
+> *"I built a production-grade house price prediction engine on the Ames Housing dataset, focusing on clean software design, data leakage prevention, and model interpretability."*
+
+---
+
+### 💬 Final Walkthrough
+
+* **Architectural Encapsulation:** I designed an end-to-end `scikit-learn` pipeline that consumes raw tabular data and applies transformations strictly within cross-validation boundaries, completely eliminating data leakage and training-serving skew.
+* **Domain Feature Engineering:** Rather than feeding raw columns directly, I authored custom Scikit-Learn transformers (`BaseEstimator`, `TransformerMixin`) to synthesize compound spatial metrics (`TotalSF`, `TotalPorchSF`), standardized plumbing ratios (`TotalBathrooms`), and construction depreciation (`HouseAge`).
+* **Benchmarking & Validation:** Across a leakage-free 5-fold cross-validation suite comparing OLS, Ridge, Random Forest, and Gradient Boosting, tree ensembles handled non-linear interactions substantially better than regularized linear baselines.
+* **Hyperparameter Optimization:** Tuning Gradient Boosting (`learning_rate=0.03`, `max_depth=4`, `n_estimators=500`) drove out-of-fold generalization to an **$R^2$ of 0.907** and an **RMSE of $26,674** on the holdout partition.
+* **Failure-Mode Diagnostics:** Rather than settling for top-line numbers, I stratified residual errors across price brackets, identifying heteroscedasticity and upper-tail truncation on luxury homes ($>\$400\text{k}$) where custom builds and thin historical volumes limit tree partition bounds.
+* **Production Deployment:** Persisting the entire artifact via `joblib` allows `predict.py` to ingest unprocessed raw records and return valuation inferences in ~12 ms with absolute schema parity.
+
+---
+
+## 📄 License
+
+This project is licensed under the terms of the **MIT License**. See the [LICENSE](LICENSE) file for complete details.
+
+---
+
