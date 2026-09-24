@@ -451,3 +451,123 @@ All candidate pipelines were initially trained on an 80% partition (1,168 sample
 * **Gradient Boosting Lead:** Without any hyperparameter tuning, **Gradient Boosting** achieved top marks across every evaluation metric, reducing holdout RMSE to `$26,189.03` with an $R^2$ of `0.911`.
 
 ---
+
+## 🔁 Cross-Validation Analysis (5-Fold Leakage-Free)
+
+To verify that model rankings and performance advantages were not artifacts of an idiosyncratically favorable single train/test split, stratified **5-fold cross-validation** was executed across the full dataset. Every fold re-fit the entire transformation and imputation pipeline strictly on in-fold training data.
+
+---
+
+### 📊 Out-of-Fold Performance Benchmark
+
+| Model | Mean MAE ($) | Mean MSE | Mean RMSE ($) | Mean $R^2$ Score | Generalization Stability |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Linear Regression** | 18,822.37 | $2.186 \times 10^9$ | 46,759.39 | 0.662341 | High variance across splits; recurring collinear coefficient instability. |
+| **Ridge Regression** | 18,141.46 | $1.311 \times 10^9$ | 36,207.07 | 0.781246 | Robust regularized baseline; prevents matrix inversion explosion. |
+| **Random Forest** | 17,154.32 | $9.502 \times 10^8$ | 30,825.59 | 0.842849 | Low-variance ensemble; stable out-of-fold generalization. |
+| **Gradient Boosting** | **15,252.49** | $\mathbf{8.906 \times 10^8}$ | **29,842.64** | **0.850382** | **Top generalization; lowest mean error across all 5 partitions.** |
+
+---
+
+### 💡 Cross-Validation Takeaways
+
+* **Invariant Rank Ordering:** Model performance hierarchies remained consistent with holdout testing:  
+  $$\text{Gradient Boosting} \succ \text{Random Forest} \succ \text{Ridge} \succ \text{OLS}$$
+* **True Out-of-Fold Error Baseline:** Gradient Boosting cemented its superiority with a cross-validated mean RMSE of **$29,842.64** and an average MAE of **$15,252.49**, capturing **85.0%** of target variance across unobserved partitions.
+* **Leakage Verification:** By re-computing all feature scalers, median imputations, and one-hot encodings within the fold boundaries, out-of-fold metrics accurately reflect production performance expectations.
+
+---
+
+## ⚙️ Hyperparameter Tuning: Random Forest
+
+Both ensemble architectures were systematically tuned using `GridSearchCV` configured with 5-fold cross-validation, optimizing explicitly against validation root mean squared error (`scoring='neg_root_mean_squared_error'`).
+
+---
+
+### 🎛️ Optimal Parameter Configuration
+
+| Parameter | Selected Value | Search Rationale & Impact |
+| :--- | :---: | :--- |
+| `n_estimators` | `200` | Expands ensemble forest size from default 100 trees to stabilize variance and smooth decision boundaries. |
+| `max_depth` | `None` | Allows individual decision trees to grow unconstrained until pure leaf nodes or minimum leaf thresholds are satisfied. |
+| `min_samples_leaf` | `2` | Regularizes leaf nodes to require at least 2 samples per terminal leaf, dampening overfitting on extreme training outliers. |
+
+---
+
+### 📊 Validation & Holdout Test Performance
+
+| Metric | Score | Analytical Interpretation |
+| :--- | :---: | :--- |
+| **Best CV RMSE** | **$29,470.90** | Lowest out-of-fold average error achieved across the parameter sweep. |
+| **Holdout MAE** | **$17,549.32** | Expected absolute dollar deviation on unseen holdout transactions. |
+| **Holdout MSE** | **$8.978 \times 10^8$** | Squared error loss penalty on holdout observations. |
+| **Holdout RMSE** | **$29,963.25** | Rooted quadratic error penalty restored to dollar units ($). |
+| **Holdout $R^2$ Score** | **0.882952** | Explains ~88.3% of valuation variance on the holdout test set. |
+
+> **Stability Note:** The tight convergence between the 5-fold CV RMSE (**$29,470.90**) and the holdout test RMSE (**$29,963.25**) demonstrates that the tuned Random Forest model generalizes cleanly without overfitting to in-sample training splits.
+
+---
+
+## ⚙️ Hyperparameter Tuning: Gradient Boosting (Final Selected Model)
+
+Sequential tree boosting was tuned across shrinkage factors, tree depths, and boosting stages via `GridSearchCV` (5-fold CV) targeting negative root mean squared error.
+
+---
+
+### 🎛️ Optimal Parameter Configuration & Architectural Mechanics
+
+| Hyperparameter | Tuned Value | Mechanistic Role & Optimization Rationale |
+| :--- | :---: | :--- |
+| `learning_rate` | `0.03` | **Shrinkage Factor:** Dampens the step-size contribution of each successive base learner by 97%, slowing the descent along the loss gradient to prevent step overshoots and improve generalization. |
+| `max_depth` | `4` | **Interaction Depth:** Limits individual regression trees to shallow splits, allowing the ensemble to capture up to 4-way non-linear feature interactions while preventing memory-memorization splits. |
+| `n_estimators` | `500` | **Sequential Stages:** Scales up boosting iterations to offset the conservative learning rate, providing sufficient capacity to systematically eliminate structured residuals. |
+
+---
+
+### 📊 Validation & Holdout Test Performance
+
+| Metric | Score | Operational Context |
+| :--- | :---: | :--- |
+| **Best CV RMSE** | **$27,149.29** | Top cross-validated score across all examined model architectures. |
+| **Holdout MAE** | **$16,034.59** | Average valuation deviation of ~$16k across unseen residential sales. |
+| **Holdout MSE** | **$7.115 \times 10^8$** | Minimum observed squared penalization on holdout records. |
+| **Holdout RMSE** | **$26,673.99** | Maintains the tightest error distribution on raw dollar terms ($). |
+| **Holdout $R^2$ Score** | **0.907240** | **Captures >90.7% of total variance** in home prices on unseen test data. |
+
+> **Production Selection Verdict:** Gradient Boosting delivered the lowest cross-validation RMSE (**$27,149.29**) and the lowest holdout test RMSE (**$26,673.99**), consistently outperforming linear baselines and bagging ensembles across all metrics. It was selected as the core estimator for the finalized, serialized production pipeline.
+
+---
+
+## 📦 Final Model & Deployment Artifact
+
+The finalized production asset packages domain-level feature engineering, numerical median-imputation, standard scaling, categorical constant-imputation, and one-hot encoding alongside the tuned sequential gradient booster into an atomic `sklearn.pipeline.Pipeline`.
+
+```python
+# Final Tuned Estimator Hyperparameters
+GradientBoostingRegressor(
+    learning_rate=0.03,
+    max_depth=4,
+    n_estimators=500,
+    random_state=42
+)
+```
+
+
+PRODUCTION HOLDOUT AUDIT (Unseen Partition: 292 Records)
+========================================================================================
+Mean Absolute Error (MAE)            :  $16,035
+Root Mean Squared Error (RMSE)       :  $26,674
+Coefficient of Determination (R²)    :   0.9072  (Explains 90.72% of Price Variance)
+
+```bash
+models/
+└── house_price_model.joblib   ◄ [Serialized Atomic Pipeline: Transformers + Estimator]
+```
+
+RESIDUAL SKEW CHARACTERISTIC
+========================================================================================
+Actual Price Range ($)         Observed Model Behavior
+────────────────────────────────────────────────────────────────────────────────────────
+$50,000  – $300,000  (90%)  ──► Balanced residuals; tight variance within ±$15,000 MAE.
+$300,000 – $500,000  (8%)   ──► Mild compression toward the regional median.
+$500,000+            (2%)   ──► Systemic underestimation (Right-tail truncation).
