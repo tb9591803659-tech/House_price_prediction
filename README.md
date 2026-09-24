@@ -552,17 +552,17 @@ GradientBoostingRegressor(
 )
 ```
 
-
+```bash
 PRODUCTION HOLDOUT AUDIT (Unseen Partition: 292 Records)
 ========================================================================================
 Mean Absolute Error (MAE)            :  $16,035
 Root Mean Squared Error (RMSE)       :  $26,674
 Coefficient of Determination (R²)    :   0.9072  (Explains 90.72% of Price Variance)
 
-```bash
+
 models/
 └── house_price_model.joblib   ◄ [Serialized Atomic Pipeline: Transformers + Estimator]
-```
+
 
 RESIDUAL SKEW CHARACTERISTIC
 ========================================================================================
@@ -571,3 +571,4 @@ Actual Price Range ($)         Observed Model Behavior
 $50,000  – $300,000  (90%)  ──► Balanced residuals; tight variance within ±$15,000 MAE.
 $300,000 – $500,000  (8%)   ──► Mild compression toward the regional median.
 $500,000+            (2%)   ──► Systemic underestimation (Right-tail truncation).
+```
