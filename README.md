@@ -208,7 +208,7 @@ Exploratory diagnostics were performed prior to pipeline construction to audit r
 ### 2. Missing Value Mechanics & Sparsity Analysis
 
 Missing values were audited to separate random data-collection voids (**MCAR / MAR**) from systemic structural absences (**MNAR**):
-> **Domain Insight (Structural Absences):** Nulls in categorical amenity features (e.g., `PoolQC`, `FireplaceQu`, `BsmtQual`, `GarageType`) are informative structural indicators meaning *"amenity does not exist on property"*, rather than dropped or corrupted telemetry. They must be explicitly imputed with constant tokens (e.g., `"None"`) rather than dropped or assigned mode values.
+ * **Domain Insight (Structural Absences):** Nulls in categorical amenity features (e.g., `PoolQC`, `FireplaceQu`, `BsmtQual`, `GarageType`) are informative structural indicators meaning *"amenity does not exist on property"*, rather than dropped or corrupted telemetry. They must be explicitly imputed with constant tokens (e.g., `"None"`) rather than dropped or assigned mode values.
 
 ---
 
@@ -229,3 +229,56 @@ Pearson correlation checks ($r$) against `SalePrice` identified the primary line
 
 ---
 
+## 📐 Feature Engineering
+
+To enrich the feature space with structural signals and spatial ergonomics, custom transformer logic was developed to compute domain-specific composite representations directly within the pipeline.
+
+---
+
+### 🧪 Engineered Formulations
+
+<table>
+  <thead>
+    <tr>
+      <th align="left">Derived Feature</th>
+      <th align="left">Mathematical Definition</th>
+      <th align="left">Domain Rationale</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>Total Square Footage</b><br><code>TotalSF</code></td>
+      <td>$$\text{TotalSF} = \text{TotalBsmtSF} + \text{1stFlrSF} + \text{2ndFlrSF}$$</td>
+      <td>Consolidates all usable above-grade and below-grade living planes into a single unified volumetric metric, resolving multi-floor collinearity.</td>
+    </tr>
+    <tr>
+      <td><b>Total Bathrooms</b><br><code>TotalBathrooms</code></td>
+      <td>$$\text{TotalBathrooms} = \text{FullBath} + 0.5 \times \text{HalfBath} + \text{BsmtFullBath} + 0.5 \times \text{BsmtHalfBath}$$</td>
+      <td>Weights half-baths (containing toilet and sink without bathing fixtures) at 0.5 to project diverse plumbing allocations onto an equivalent utility scale.</td>
+    </tr>
+    <tr>
+      <td><b>Total Porch Area</b><br><code>TotalPorchSF</code></td>
+      <td>$$\text{TotalPorchSF} = \text{OpenPorchSF} + \text{EnclosedPorch} + \text{3SsnPorch} + \text{ScreenPorch} + \text{WoodDeckSF}$$</td>
+      <td>Aggregates fragmented exterior deck and patio attributes into an overall exterior living/leisure footprint.</td>
+    </tr>
+    <tr>
+      <td><b>House Age at Sale</b><br><code>HouseAge</code></td>
+      <td>$$\text{HouseAge} = \text{YrSold} - \text{YearBuilt}$$</td>
+      <td>Replaces static calendar years with true physical age at time of transaction, directly capturing structural depreciation and wear.</td>
+    </tr>
+    <tr>
+      <td><b>Remodel Age at Sale</b><br><code>RemodAge</code></td>
+      <td>$$\text{RemodAge} = \text{YrSold} - \text{YearRemodAdd}$$</td>
+      <td>Quantifies the elapsed time since the property's latest structural modernizations or architectural renovations.</td>
+    </tr>
+    <tr>
+      <td><b>Average Area Per Room</b><br><code>TotalSFPerRoom</code></td>
+      <td>$$\text{TotalSFPerRoom} = \frac{\text{TotalSF}}{\text{TotRmsAbvGrd}}$$</td>
+      <td>Calculates spaciousness and spatial density, separating cramped floor plans from open-concept residential designs.</td>
+    </tr>
+  </tbody>
+</table>
+
+> **Empirical Validation Principle:** These features are constructed as candidate predictors; their incremental contribution is rigorously verified through cross-validated ablation and downstream feature importance audits rather than assumed *a priori*.
+
+---
